@@ -1,0 +1,159 @@
+//@version=6
+indicator("Vanila-GB", shorttitle="Vanila-GB", overlay=true, max_lines_count=50)
+
+// === INPUTS ===
+po3_value = input.int(243, "PO3 Range", options=[3, 9, 27, 81, 243, 729, 2187, 6561, 19683, 59049, 177147])
+show_semi_prime = input.bool(false, "Show Semi-Prime Levels")
+show_extensions = input.bool(false, "Show Extension Levels")
+show_labels = input.bool(true, "Show Labels")
+is_forex = input.bool(false, "Forex Mode (4-decimal)")
+
+// === COLOR GROUPS ===
+colorGroup = "Colors"
+goldbach_color = input.color(color.blue, "Goldbach Levels", group=colorGroup)
+highlow_color = input.color(color.white, "High/Low", group=colorGroup)
+ce_color = input.color(color.yellow, "C.E.", group=colorGroup)
+extensions_color = input.color(color.silver, "Extensions", group=colorGroup)
+
+// === LINE AND LABEL STORAGE ===
+var line[] all_lines = array.new<line>()
+var label[] all_labels = array.new<label>()
+var int previous_range_number = na
+
+// === ULTRA-FAST RANGE DETECTION ===
+// For forex: convert to integer, calculate, then convert back
+current_price = is_forex ? close * 10000 : close
+effective_po3 = is_forex ? po3_value : po3_value
+
+// Find current range (ultra-fast calculation)
+range_low = math.floor(current_price / effective_po3) * effective_po3
+range_high = range_low + effective_po3
+range_number = math.floor(current_price / effective_po3) + 1
+
+// Convert back for forex
+display_low = is_forex ? range_low / 10000 : range_low
+display_high = is_forex ? range_high / 10000 : range_high
+range_size = display_high - display_low
+
+// Check if range has changed
+range_changed = na(previous_range_number) or range_number != previous_range_number
+if range_changed
+    previous_range_number := range_number
+
+// === GOLDBACH LEVEL CALCULATIONS ===
+// Core Goldbach Levels (15 levels)
+level_0 = display_low + (0.00 * range_size)   // 0% - HIGH/LOW
+level_3 = display_low + (0.03 * range_size)   // 3% - RB
+level_11 = display_low + (0.11 * range_size)  // 11% - OB
+level_17 = display_low + (0.17 * range_size)  // 17% - FVG
+level_29 = display_low + (0.29 * range_size)  // 29% - LV
+level_41 = display_low + (0.41 * range_size)  // 41% - BR
+level_47 = display_low + (0.47 * range_size)  // 47% - MB
+level_50 = display_low + (0.50 * range_size)  // 50% - C.E.
+level_53 = display_low + (0.53 * range_size)  // 53% - MB
+level_59 = display_low + (0.59 * range_size)  // 59% - BR
+level_71 = display_low + (0.71 * range_size)  // 71% - LV
+level_83 = display_low + (0.83 * range_size)  // 83% - FVG
+level_89 = display_low + (0.89 * range_size)  // 89% - OB
+level_97 = display_low + (0.97 * range_size)  // 97% - RB
+level_100 = display_low + (1.00 * range_size) // 100% - HIGH/LOW
+
+// Semi-Prime Levels (4 levels)
+level_23 = display_low + (0.23 * range_size)  // 23% - N23
+level_35 = display_low + (0.35 * range_size)  // 35% - N35
+level_65 = display_low + (0.65 * range_size)  // 65% - N65
+level_77 = display_low + (0.77 * range_size)  // 77% - N77
+
+// Extension Levels (2 levels)
+level_ext_low = display_low - (0.111 * range_size)  // -11.1% - EXT
+level_ext_high = display_high + (0.111 * range_size) // 111.1% - EXT
+
+// === MINIMAL TABLE ===
+var table info_table = table.new(position.top_right, 2, 1, border_width=1, border_color=color.gray, bgcolor=color.new(color.black, 80))
+
+if barstate.islast
+    table.cell(info_table, 0, 0, "PO3: " + str.tostring(po3_value), text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 0, "Range: " + str.tostring(range_number), text_color=color.white, text_size=size.small)
+
+// === CLEAR OLD LINES AND LABELS FUNCTION ===
+f_clear_all() =>
+    if array.size(all_lines) > 0
+        for i = 0 to array.size(all_lines) - 1
+            line.delete(array.get(all_lines, i))
+        array.clear(all_lines)
+    if array.size(all_labels) > 0
+        for i = 0 to array.size(all_labels) - 1
+            label.delete(array.get(all_labels, i))
+        array.clear(all_labels)
+
+// === LINE DRAWING ===
+// Clear old lines when range changes or on last bar
+if range_changed or barstate.islast
+    f_clear_all()
+
+if barstate.islast
+    // High/Low Levels
+    array.push(all_lines, line.new(bar_index, level_0, bar_index + 10, level_0, color=highlow_color, width=2))
+    array.push(all_lines, line.new(bar_index, level_100, bar_index + 10, level_100, color=highlow_color, width=2))
+
+    // Core Goldbach Levels
+    array.push(all_lines, line.new(bar_index, level_3, bar_index + 10, level_3, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_11, bar_index + 10, level_11, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_17, bar_index + 10, level_17, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_29, bar_index + 10, level_29, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_41, bar_index + 10, level_41, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_47, bar_index + 10, level_47, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_53, bar_index + 10, level_53, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_59, bar_index + 10, level_59, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_71, bar_index + 10, level_71, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_83, bar_index + 10, level_83, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_89, bar_index + 10, level_89, color=goldbach_color, width=1))
+    array.push(all_lines, line.new(bar_index, level_97, bar_index + 10, level_97, color=goldbach_color, width=1))
+
+    // C.E. Level
+    array.push(all_lines, line.new(bar_index, level_50, bar_index + 10, level_50, color=ce_color, width=2))
+
+    // Labels (conditional)
+    if show_labels
+        // Labels for High/Low levels
+        array.push(all_labels, label.new(bar_index + 12, level_0, "0% LOW", style=label.style_label_left, color=color.new(highlow_color, 70), textcolor=color.black, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_100, "100% HIGH", style=label.style_label_left, color=color.new(highlow_color, 70), textcolor=color.black, size=size.tiny))
+
+        // Labels for core Goldbach levels
+        array.push(all_labels, label.new(bar_index + 12, level_3, "3% RB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_11, "11% OB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_17, "17% FVG", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_29, "29% LV", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_41, "41% BR", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_47, "47% MB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_53, "53% MB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_59, "59% BR", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_71, "71% LV", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_83, "83% FVG", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_89, "89% OB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+        array.push(all_labels, label.new(bar_index + 12, level_97, "97% RB", style=label.style_label_left, color=color.new(goldbach_color, 70), textcolor=color.white, size=size.tiny))
+
+        // Label for C.E. level
+        array.push(all_labels, label.new(bar_index + 12, level_50, "C.E.", style=label.style_label_left, color=color.new(ce_color, 70), textcolor=color.black, size=size.tiny))
+
+    // Semi-Prime Levels (optional)
+    if show_semi_prime
+        array.push(all_lines, line.new(bar_index, level_23, bar_index + 10, level_23, color=color.gray, width=1, style=line.style_dotted))
+        array.push(all_lines, line.new(bar_index, level_35, bar_index + 10, level_35, color=color.gray, width=1, style=line.style_dotted))
+        array.push(all_lines, line.new(bar_index, level_65, bar_index + 10, level_65, color=color.gray, width=1, style=line.style_dotted))
+        array.push(all_lines, line.new(bar_index, level_77, bar_index + 10, level_77, color=color.gray, width=1, style=line.style_dotted))
+
+        if show_labels
+            array.push(all_labels, label.new(bar_index + 12, level_23, "23% N23", style=label.style_label_left, color=color.new(color.gray, 70), textcolor=color.white, size=size.tiny))
+            array.push(all_labels, label.new(bar_index + 12, level_35, "35% N35", style=label.style_label_left, color=color.new(color.gray, 70), textcolor=color.white, size=size.tiny))
+            array.push(all_labels, label.new(bar_index + 12, level_65, "65% N65", style=label.style_label_left, color=color.new(color.gray, 70), textcolor=color.white, size=size.tiny))
+            array.push(all_labels, label.new(bar_index + 12, level_77, "77% N77", style=label.style_label_left, color=color.new(color.gray, 70), textcolor=color.white, size=size.tiny))
+
+    // Extension Levels (optional)
+    if show_extensions
+        array.push(all_lines, line.new(bar_index, level_ext_low, bar_index + 10, level_ext_low, color=extensions_color, width=1, style=line.style_dashed))
+        array.push(all_lines, line.new(bar_index, level_ext_high, bar_index + 10, level_ext_high, color=extensions_color, width=1, style=line.style_dashed))
+
+        if show_labels
+            array.push(all_labels, label.new(bar_index + 12, level_ext_low, "-11.1% EXT", style=label.style_label_left, color=color.new(extensions_color, 70), textcolor=color.white, size=size.tiny))
+            array.push(all_labels, label.new(bar_index + 12, level_ext_high, "111.1% EXT", style=label.style_label_left, color=color.new(extensions_color, 70), textcolor=color.white, size=size.tiny))
